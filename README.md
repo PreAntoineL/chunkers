@@ -4,6 +4,66 @@ Documentation des chunkers hierarchiques pour le systeme RAG ACC.
 
 ---
 
+## BaseChunker
+
+**Fichier** : `base_chunker.py`  
+**Role** : Classe abstraite definissant l'interface commune et les utilitaires partages.
+
+### Dataclass Chunk
+
+Structure de donnees pour representer un fragment de document :
+
+```python
+@dataclass
+class Chunk:
+    id: str           # UUID unique (format Qdrant)
+    content: str      # Contenu textuel du fragment
+    doc_type: str     # Type: "schema", "workflow", "javascript"
+    source_file: str  # Fichier d'origine
+    section: str      # Type de section (summary, fields, script...)
+    metadata: Dict    # Metadonnees contextuelles
+```
+
+### Methodes utilitaires
+
+| Methode | Description |
+|---------|-------------|
+| `_generate_chunk_id()` | Genere un UUID v5 unique et deterministe (meme input = meme ID) |
+| `_estimate_tokens()` | Estimation rapide : 1 token ~ 4 caracteres |
+| `_split_by_headers()` | Decoupe le markdown par en-tetes (regex configurable) |
+| `_merge_small_chunks()` | Fusionne les chunks <100 tokens avec le precedent |
+| `_clean_content()` | Nettoie le contenu (lignes vides multiples, espaces) |
+
+### Interface a implementer
+
+Les classes filles **doivent** implementer :
+
+```python
+def chunk_file(self, filepath: str) -> List[Chunk]:
+    """ Decoupe un fichier en chunks. """
+
+def chunk_content(self, content: str, source_file: str) -> List[Chunk]:
+    """ Decoupe un contenu textuel en chunks. """
+```
+
+### Generation des IDs
+
+Les IDs sont generes avec `uuid.uuid5()` pour etre :
+- **Deterministes** : meme fichier/section/index = meme UUID
+- **Compatibles Qdrant** : format UUID valide
+
+```python
+# Namespace fixe pour le projet ACC
+ACC_NAMESPACE = uuid.UUID("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+
+# Generation
+key = f"{source_file}:{section}:{index}"
+uuid.uuid5(ACC_NAMESPACE, key)
+```
+
+
+---
+
 ## Principe general
 
 Les deux chunkers utilisent une **structure arborescente** pour decouper les documents en chunks semantiquement coherents. Chaque chunk possede un `section` qui identifie son type.
